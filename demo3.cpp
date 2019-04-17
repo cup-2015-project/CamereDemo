@@ -46,49 +46,7 @@ LONG nPort = -1;
 HWND hWnd = NULL;
 
 
-void yv12toYUV(char *outYuv, char *inYv12, int width, int height, int widthStep)
-{
-	int col, row;
-	unsigned int Y, U, V;
-	int tmp;
-	int idx;
 
-	//printf("widthStep=%d.\n",widthStep);
-
-	for (row = 0; row<height; row++)
-	{
-		idx = row * widthStep;
-		int rowptr = row*width;
-
-		for (col = 0; col<width; col++)
-		{
-			//int colhalf=col>>1;
-			tmp = (row / 2)*(width / 2) + (col / 2);
-			//         if((row==1)&&( col>=1400 &&col<=1600))
-			//         { 
-			//          printf("col=%d,row=%d,width=%d,tmp=%d.\n",col,row,width,tmp);
-			//          printf("row*width+col=%d,width*height+width*height/4+tmp=%d,width*height+tmp=%d.\n",row*width+col,width*height+width*height/4+tmp,width*height+tmp);
-			//         } 
-			Y = (unsigned int)inYv12[row*width + col];
-			U = (unsigned int)inYv12[width*height + width*height / 4 + tmp];
-			V = (unsigned int)inYv12[width*height + tmp];
-			//         if ((col==200))
-			//         { 
-			//         printf("col=%d,row=%d,width=%d,tmp=%d.\n",col,row,width,tmp);
-			//         printf("width*height+width*height/4+tmp=%d.\n",width*height+width*height/4+tmp);
-			//         return ;
-			//         }
-			if ((idx + col * 3 + 2)> (1200 * widthStep))
-			{
-				//printf("row * widthStep=%d,idx+col*3+2=%d.\n",1200 * widthStep,idx+col*3+2);
-			}
-			outYuv[idx + col * 3] = Y;
-			outYuv[idx + col * 3 + 1] = U;
-			outYuv[idx + col * 3 + 2] = V;
-		}
-	}
-	//printf("col=%d,row=%d.\n",col,row);
-}
 
 
 
@@ -97,75 +55,29 @@ void CALLBACK DecCBFun(long nPort, char * pBuf, long nSize, FRAME_INFO * pFrameI
 {
 	long lFrameType = pFrameInfo->nType;
 
-	FrameHeight = pFrameInfo->nHeight;
+	FrameHeight = pFrameInfo->nHeight;//全局变量记录帧长宽
 	FrameWidth = pFrameInfo->nWidth;
 
 	if (lFrameType == T_YV12)
 	{
-#if USECOLOR
-		//int start = clock();
-		//IplImage* pImgYCrCb = cvCreateImage(cvSize(pFrameInfo->nWidth, pFrameInfo->nHeight), 8, 3);//得到图像的Y分量  
-		//yv12toYUV(pImgYCrCb->imageData, pBuf, pFrameInfo->nWidth, pFrameInfo->nHeight, pImgYCrCb->widthStep);//得到全部RGB图像
-		//IplImage* pImg = cvCreateImage(cvSize(pFrameInfo->nWidth, pFrameInfo->nHeight), 8, 3);
-		//cvCvtColor(pImgYCrCb, pImg, CV_YCrCb2RGB);
-		//int end = clock();
-#else
-		IplImage* pImg = cvCreateImage(cvSize(pFrameInfo->nWidth, pFrameInfo->nHeight), 8, 1);
-		memcpy(pImg->imageData, pBuf, pFrameInfo->nWidth*pFrameInfo->nHeight);
-#endif
-
-		//printf("%d\n",end-start);
-		//cvShowImage("IPCamera", pImg);
-		//cvWaitKey(1);
-
-
-		//Mat pImg(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC3);
 		Mat pImg_YUV(pFrameInfo->nHeight + pFrameInfo->nHeight / 2, pFrameInfo->nWidth, CV_8UC1, pBuf);
-		//Mat pImg_YCrCb(pFrameInfo->nHeight, pFrameInfo->nWidth, CV_8UC3);
-		//cvtColor(pImg_YUV, pImg, CV_YUV2BGR_YV12);
-		//cvtColor(pImg, pImg_YCrCb, CV_BGR2YCrCb);
-
+		//直接将YV12格式的buffer转成Mat，写入全局链队列
 		std::unique_lock<std::mutex> locker(mu);//lock
+
 		if (MAX_SIZE == g_frameList.size())
 			g_frameList.pop_front();
-		//g_frameList.push_back(pImg );
+		//缓存处理
 		g_frameList.push_back(pImg_YUV);
 		++i;
 		cout << "read:" << i << endl;
 		cout << "size:" << g_frameList.size() << endl;
-		//if (i > TOTAL)
-		//{
-		//	g_frameList.clear();
-		//	locker.unlock();//unlock
-		//	return;
-		//}
 
-		//
-		if(DROP < g_frameList.size() )
-			cond.notify_one();
-		else 
+		if (DROP < g_frameList.size())
+			cond.notify_one();//unlock
+		else
 			locker.unlock();//unlock
 
-#if USECOLOR
-		//cvReleaseImage(&pImgYCrCb);
-		//cvReleaseImage(&pImg);
-#else
-		//cvReleaseImage(&pImg);
-#endif
-		//此时是YV12格式的视频数据，保存在pBuf中，可以fwrite(pBuf,nSize,1,Videofile);
-		//fwrite(pBuf,nSize,1,fp);
 	}
-	/***************
-	else if (lFrameType ==T_AUDIO16)
-	{
-	//此时是音频数据，数据保存在pBuf中，可以fwrite(pBuf,nSize,1,Audiofile);
-
-	}
-	else
-	{
-	}
-	*******************/
-
 }
 
 
@@ -209,11 +121,11 @@ void CALLBACK fRealDataCallBack(LONG lRealHandle, DWORD dwDataType, BYTE *pBuffe
 			}
 
 			//打开音频解码, 需要码流是复合流
-			if (!PlayM4_PlaySound(nPort))
-			{
-				dRet = PlayM4_GetLastError(nPort);
-				break;
-			}
+			//if (!PlayM4_PlaySound(nPort))
+			//{
+			//	dRet = PlayM4_GetLastError(nPort);
+			//	break;
+			//}
 		}
 		break;
 
@@ -252,37 +164,6 @@ void CALLBACK g_ExceptionCallBack(DWORD dwType, LONG lUserID, LONG lHandle, void
 ///////////////////////////////////
 void readFrame()
 {
-	//Mat temp_frame;
-
-	//VideoCapture cap(0);
-	//if (!cap.isOpened())
-	//	return;
-
-	//while (1)
-	//{
-	//	cap >> temp_frame;
-	//	if (temp_frame.empty())
-	//	{
-	//		break;
-	//	}
-	//	std::unique_lock<std::mutex> locker(mu);//lock
-	//	if (MAX_SIZE == g_frameList.size())
-	//		g_frameList.pop_front();
-	//	g_frameList.push_back(temp_frame);
-	//	++i;
-	//	if (i > TOTAL)
-	//	{
-	//		g_frameList.clear();
-	//		locker.unlock();//unlock
-	//		break;
-	//	}
-
-	//	//locker.unlock();//unlock
-	//	cond.notify_one();
-	//}
-
-	//cap.release();
-	//return;
 
 	//---------------------------------------
 	// 初始化
@@ -330,11 +211,8 @@ void readFrame()
 		return;
 	}
 
-	//cvWaitKey(0);
 	Sleep(-1);
-	//system("pause");
-
-	//fclose(fp);
+	
 	//---------------------------------------
 	//关闭预览
 	if (!NET_DVR_StopRealPlay(lRealPlayHandle))
@@ -342,7 +220,6 @@ void readFrame()
 		printf("NET_DVR_StopRealPlay error! Error number: %d\n", NET_DVR_GetLastError());
 		return;
 	}
-	//system("pause");
 
 	//注销用户
 	NET_DVR_Logout(lUserID);
@@ -373,16 +250,12 @@ void track()
 		it = g_frameList.end();
 		it--;
 		temp_frame = *it;
-		//temp_frame = *g_frameList.begin();
-		//g_frameList.pop_front();
-		//
-		
-		//	g_frameList.clear();
-		//cout << g_frameList.size() << endl;
+
 		
 
 		locker.unlock();//unlock
 
+		//取出YV12格式的Mat进行转换、显示
 		Mat pImg(FrameHeight, FrameWidth, CV_8UC3);
 		//Mat pImg_YUV(pFrameInfo->nHeight + pFrameInfo->nHeight / 2, pFrameInfo->nWidth, CV_8UC1, pBuf);
 		Mat pImg_YCrCb(FrameHeight, FrameWidth, CV_8UC3);
@@ -406,8 +279,6 @@ int main()
 	reader.join();
 	tracker.join();
 
-	//cout << g_frameList.max_size() <<endl;
-	//cout << testList.max_size() << endl;
 	system("pause");
 	return 0;
 }
