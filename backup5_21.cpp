@@ -10,7 +10,6 @@
 保存的结果图中，转动部分不再有跟踪信息
 */
 
-
 // demo3.cpp : 定义控制台应用程序的入口点。
 //双线程播放监控摄像头，线程一调用摄像头读取帧到Mat队列，线程二从Mat队列读取帧并检测运动目标
 
@@ -183,6 +182,9 @@ void turnCamera(LONG lRealPlayHandle)
 {
 	int situation = 0;
 	int speed = 7;
+	int time_wait = 800;
+	int time_move = 50;
+
 	/**************
 	*      A
 	*  5 | 1 | 6
@@ -219,9 +221,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, TILT_DOWN, 0, speed);
 			//cout << "start A" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, TILT_DOWN, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop A" << endl;
 			//stop
@@ -231,9 +233,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, TILT_UP, 0, speed);
 			//cout << "start V" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, TILT_UP, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop V" << endl;
 			//stop
@@ -243,9 +245,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, PAN_RIGHT, 0, speed);
 			//cout << "start <" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, PAN_RIGHT, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop <" << endl;
 			//stop
@@ -255,9 +257,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, PAN_LEFT, 0, speed);
 			//cout << "start >" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, PAN_LEFT, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop >" << endl;
 			//stop
@@ -267,9 +269,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, DOWN_RIGHT, 0, speed);
 			//cout << "start 5" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, DOWN_RIGHT, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop 5" << endl;
 			//stop
@@ -279,9 +281,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, DOWN_LEFT, 0, speed);
 			//cout << "start 6" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, DOWN_LEFT, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop 6" << endl;
 			//stop
@@ -291,9 +293,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, UP_RIGHT, 0, speed);
 			//cout << "start 7" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, UP_RIGHT, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop 7" << endl;
 			//stop
@@ -303,9 +305,9 @@ void turnCamera(LONG lRealPlayHandle)
 			Turning = 1;
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, UP_LEFT, 0, speed);
 			//cout << "start 8" << endl;
-			Sleep(100);
+			Sleep(time_move);
 			NET_DVR_PTZControlWithSpeed(lRealPlayHandle, UP_LEFT, 1, speed);
-			Sleep(1000);
+			Sleep(time_wait);
 			Turning = 0;
 			//cout << "stop 8" << endl;
 			//stop
@@ -430,13 +432,15 @@ Mat detect3frames(Mat &frame, Mat &framePre, Mat &framePrePre)
 	bitwise_xor(biImg2, biImg23, biImg3);
 
 	Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
-	Mat element2 = getStructuringElement(MORPH_RECT, Size(3, 3));
+	Mat element2 = getStructuringElement(MORPH_RECT, Size(15, 15));
 
+	result = biImg3;
 	//形态学滤波
-	morphologyEx(biImg3,result, MORPH_OPEN,element);
-	morphologyEx(result, result, MORPH_CLOSE, element);
-	morphologyEx(result, result, MORPH_CLOSE, element);
-	//morphologyEx(result, result, MORPH_OPEN, element);
+	//morphologyEx(biImg3, result, MORPH_CLOSE, element);
+	morphologyEx(result,result, MORPH_OPEN,element);
+	morphologyEx(result, result, MORPH_CLOSE, element2);
+	dilate(result, result, element2);
+	//morphologyEx(result, result, MORPH_CLOSE, element2);
 	//morphologyEx(result, result, MORPH_OPEN, element);
 
 	return result;
@@ -547,7 +551,7 @@ void detect(Rect2d &rect_)
 			//imshow("result", result_frame);
 		}
 		//imshow("temp", temp_frame);
-		//waitKey(1);
+		waitKey(1);
 	}
 	//destroyAllWindows();
 	return;
@@ -668,10 +672,11 @@ void track()
 	Mat frameNow, framePre, framePrePre;
 	Mat lastTarget,targetBackup;
 	//Mat h;
-	int dis_threshod = 50;
+	int dis_threshod = 85;
 	int state = 0;
 	float fps = 0;
 	double timer = 0;
+	SYSTEMTIME sys;
 	bool ok = false;
 	bool flag2 = false;
 	string trackerType = "MOSSE";
@@ -852,14 +857,14 @@ void track()
 					// Tracking failure detected.
 					putText(frame, "1Tracking failure detected", Point(100, 80), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0, 0, 255), 2);
 					bboxPre = Rect2d(bbox);
-					//检查检测框是否不在图片区域内
-					if (0 <= bboxPre.x  && bboxPre.x + bboxPre.width <= frame.cols &&
-						0 <= bboxPre.y  && bboxPre.y + bboxPre.height <= frame.rows) {
-						lastTarget = Mat(framePre, bboxPre);
-					}
-					else {
+					////检查检测框是否不在图片区域内
+					//if (0 <= bboxPre.x  && bboxPre.x + bboxPre.width <= frame.cols &&
+					//	0 <= bboxPre.y  && bboxPre.y + bboxPre.height <= frame.rows) {
+					//	lastTarget = Mat(framePre, bboxPre);
+					//}
+					//else {
 						lastTarget = Mat(targetBackup);
-					}
+					//}
 					cout <<"last target:"<< bboxPre << endl;
 					
 					state = 2;
@@ -897,9 +902,14 @@ void track()
 					if (boundRect.empty()) {
 						
 					}
+					//追加1.5倍大小的上个目标位置
 					Rect2d temp_bbox = Rect2d(bboxPre);
-					temp_bbox += Point2d(bboxPre.width / 3, bboxPre.height / 3);
+					temp_bbox -= Point2d(bboxPre.width / 3, bboxPre.height / 3);
 					temp_bbox += Size2d(bboxPre.width / 3 * 2, bboxPre.height / 3 * 2);
+					boundRect.push_back(Rect(temp_bbox));
+					//追加中心区域
+					temp_bbox = Rect2d((center_0.x - dis_threshod), 
+						(center_0.y - dis_threshod), dis_threshod * 2, dis_threshod * 2);
 					boundRect.push_back(Rect(temp_bbox));
 					//运动区域检测目标
 					bool center_exist = getCenter1(lastTarget,frame,boundRect,test_bbox);
@@ -960,6 +970,11 @@ void track()
 			}
 		}
 
+		
+		GetLocalTime(&sys);
+		char timeBuffer[64];
+		sprintf_s(timeBuffer, "[%4d/%02d/%02d %02d:%02d:%02d.%03d]", sys.wYear, sys.wMonth, sys.wDay, sys.wHour, sys.wMinute, sys.wSecond, sys.wMilliseconds);
+		putText(frame, "#" + SSTR(int(count_frame))+" "+timeBuffer, Point(20, 20), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0, 255, 255), 2);
 		string fileName = "";
 		fileName += "D:\\images_test\\log_"+SSTR(int(count_frame))+".jpg";
 		imwrite(fileName, frame);
@@ -972,15 +987,46 @@ void track()
 }
 
 
+void play()
+{
+	Mat frame;
+	SYSTEMTIME sys;
+	int count_frame = 0;
+	while (1)
+	{
+		count_frame++;
+		frame = read_Frame();
+		GetLocalTime(&sys);
+		char timeBuffer[64];
+		sprintf_s(timeBuffer, "[%4d/%02d/%02d %02d:%02d:%02d.%03d]", sys.wYear, sys.wMonth, sys.wDay, sys.wHour, sys.wMinute, sys.wSecond, sys.wMilliseconds);
+		putText(frame, "#" + SSTR(int(count_frame)) + " " + timeBuffer, Point(20, 20), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0, 255, 255), 2);
+		string fileName = "";
+		fileName += "D:\\images_test\\log_" + SSTR(int(count_frame)) + ".jpg";
+		imwrite(fileName, frame);
+		imshow("Tracking", frame);
 
+		// Exit if ESC pressed.
+		int k = waitKey(1) & 0xFF;
+		if (k == 27)
+		{
+			break;
+		}
+	}
+	return;
+}
 
 int main()
 {
+	
+	//thread reader(write_Frame);
+	////Sleep(1);
+	//thread tracker(play);
 
-//	thread reader(write_Frame);
-//	//Sleep(1);
-//	thread tracker(showHist);
-//
+	//Rect2d rect;
+	//thread reader(readFrame);
+	////Sleep(1);
+	//thread tracker(detect,rect);
+
 
 	thread reader(readFrame);
 	//Sleep(1);
