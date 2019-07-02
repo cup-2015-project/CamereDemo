@@ -1,0 +1,182 @@
+// demo3.cpp : 定义控制台应用程序的入口点。
+//相对v0.1增加了MOSSE跟踪，线程二在跟踪时可使用ESC退出，线程一在向Mat队列写入TOTAL帧后自动退出，线程二在读取到第TOTAL-1帧时自动退出
+
+#include "stdafx.h"
+#include "Windows.h"
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <iostream>
+#include <list>
+#include <opencv2/opencv.hpp>
+#include <opencv2/tracking.hpp>
+#include <opencv2/core/ocl.hpp>
+
+
+
+using namespace std;
+using namespace cv;
+
+
+#define MAX_SIZE 70
+#define TOTAL 500
+
+// Convert to string
+#define SSTR( x ) static_cast< std::ostringstream & >( \
+( std::ostringstream() << std::dec << x ) ).str()
+
+//CRITICAL_SECTION g_cs_frameList;
+std::list<Mat> g_frameList;
+list<int> testList;
+int i = -1;
+mutex mu;
+condition_variable cond;
+
+void readFrame() 
+{
+	Mat temp_frame;
+
+	VideoCapture cap(0);
+	if (!cap.isOpened())
+		return ;
+	
+	while (1) 
+	{
+		cap >> temp_frame;
+		if (temp_frame.empty())
+		{
+			break;
+		}
+		std::unique_lock<std::mutex> locker(mu);//lock
+		if (MAX_SIZE == g_frameList.size())
+			g_frameList.pop_front();
+		g_frameList.push_back(temp_frame);
+		++i;
+		if (i > TOTAL)
+		{
+			g_frameList.clear();
+			locker.unlock();//unlock
+			break;
+		}
+			
+		//locker.unlock();//unlock
+		cond.notify_one();
+	}
+
+	cap.release();
+	return;
+}
+
+void track()
+{
+	Mat frame;
+	string trackerType = "MOSSE";
+	Ptr<Tracker> tracker;
+
+#if (CV_MINOR_VERSION < 3)
+	{
+		tracker = Tracker::create(trackerType);
+	}
+#else
+	{
+		tracker = TrackerMOSSE::create();
+	}
+#endif
+
+	int count_frame = 0;
+	// Define initial boundibg box 
+	Rect2d bbox(287, 23, 86, 320);
+
+	while (1)
+	{
+		//取出帧
+		std::unique_lock<std::mutex> locker(mu);//lock
+		while (g_frameList.empty())
+		{	 
+			cond.wait(locker);
+		}
+		if (i > TOTAL - 1)//确定结束条件，处理帧停止后还需收集帧，否则无法唤醒处理程序
+		{
+			locker.unlock();//unlock
+			destroyAllWindows();
+			return;
+		}
+		frame = *g_frameList.begin();
+		//cout << g_frameList.size() << endl;
+		g_frameList.pop_front();
+		locker.unlock();//unlock
+
+		//处理过程
+		count_frame++;
+		if (1 == count_frame)
+		{
+			// Uncomment the line below to select a different bounding box 
+			bbox = selectROI(frame, false);
+
+			// Display bounding box. 
+			rectangle(frame, bbox, Scalar(255, 0, 0), 2, 1);
+			imshow("Tracking", frame);
+			tracker->init(frame, bbox);
+		}
+		else
+		{
+			// Start timer
+			double timer = (double)getTickCount();
+
+			// Update the tracking result
+			bool ok = tracker->update(frame, bbox);
+
+			// Calculate Frames per second (FPS)
+			float fps = getTickFrequency() / ((double)getTickCount() - timer);
+
+			if (ok)
+			{
+				// Tracking success : Draw the tracked object
+				rectangle(frame, bbox, Scalar(255, 0, 0), 2, 1);
+			}
+			else
+			{
+				// Tracking failure detected.
+				putText(frame, "Tracking failure detected", Point(100, 80), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0, 0, 255), 2);
+			}
+
+			// Display tracker type on frame
+			putText(frame, trackerType + " Tracker", Point(100, 20), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(50, 170, 50), 2);
+
+			// Display FPS on frame
+			putText(frame, "FPS : " + SSTR(int(fps)), Point(100, 50), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(50, 170, 50), 2);
+
+			// Display frame.
+			imshow("Tracking", frame);
+
+			// Exit if ESC pressed.
+			int k = waitKey(1) & 0xFF;
+			if (k == 27)
+			{
+				break;
+			}
+		}
+		
+		//imshow("temp" , frame);
+		//waitKey(1);
+	}
+	destroyAllWindows();
+	return;
+}
+
+int main()
+{
+	thread reader(readFrame);
+	//Sleep(1);
+	thread tracker(track);
+	
+		
+	reader.join();
+	tracker.join();
+	
+	//cout << g_frameList.max_size() <<endl;
+	//cout << testList.max_size() << endl;
+	system("pause");
+    return 0;
+}
+
